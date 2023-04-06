@@ -88,18 +88,9 @@ impl Stroke {
         let mut count = 0;
         for (i, pt) in points.windows(2).enumerate() {
             if let [last, current] = pt {
-                let mut last = *last;
-                let mut current = *current;
-                let mut next = points.get(i + 2).copied();
-                let thickness = thickness_fn(current, i, points);
-                let amt = self.seg(
-                    &mut complex,
-                    count,
-                    &mut last,
-                    &mut current,
-                    next.as_mut(),
-                    thickness * 0.5,
-                );
+                let next = points.get(i + 2).copied();
+                let thickness = thickness_fn(*current, i, points);
+                let amt = self.seg(&mut complex, count, *last, *current, next, thickness * 0.5);
                 count += amt;
             }
         }
@@ -111,9 +102,9 @@ impl Stroke {
         &mut self,
         complex: &mut Mesh,
         index: u32,
-        last: &mut [f64; 2],
-        cur: &mut [f64; 2],
-        next: Option<&mut [f64; 2]>,
+        mut last: [f64; 2],
+        mut cur: [f64; 2],
+        next: Option<[f64; 2]>,
         half_thick: f64,
     ) -> u32 {
         let mut count = 0;
@@ -123,7 +114,7 @@ impl Stroke {
         let join_bevel = matches!(self.join, StrokeJoin::Bevel);
 
         // get unit direction of line
-        let line_a = direction(*cur, *last);
+        let line_a = direction(cur, last);
 
         //if we don't yet have a normal from previous join,
         //compute based on line start - end
@@ -137,9 +128,9 @@ impl Stroke {
 
             // if the end cap is type square, we can just push the verts out a bit
             if cap_square {
-                *last = scale_and_add(*last, line_a, -half_thick);
+                last = scale_and_add(last, line_a, -half_thick);
             }
-            let [e1, e2] = extrusions(*last, self.normal.unwrap(), half_thick);
+            let [e1, e2] = extrusions(last, self.normal.unwrap(), half_thick);
             positions.push(e1);
             positions.push(e2);
         }
@@ -157,7 +148,7 @@ impl Stroke {
         if let Some(next) = next {
             //we have a next segment, start with miter
             //get unit dir of next line
-            let line_b = direction(*next, *cur);
+            let line_b = direction(next, cur);
 
             //stores tangent & miter
             let (tangent, miter, miter_len) = compute_miter(line_a, line_b, half_thick);
@@ -179,9 +170,9 @@ impl Stroke {
 
             if bevel {
                 //next two points in our first segment
-                let tmp = scale_and_add(*cur, self.normal.unwrap(), -half_thick * flip);
+                let tmp = scale_and_add(cur, self.normal.unwrap(), -half_thick * flip);
                 positions.push(tmp);
-                let tmp = scale_and_add(*cur, miter, miter_len * flip);
+                let tmp = scale_and_add(cur, miter, miter_len * flip);
                 positions.push(tmp);
 
                 cells.push(if self.last_flip != -flip {
@@ -194,7 +185,7 @@ impl Stroke {
                 let tmp = normal(line_b);
                 self.normal = Some(tmp); //store normal for next round
 
-                let tmp = scale_and_add(*cur, tmp, -half_thick * flip);
+                let tmp = scale_and_add(cur, tmp, -half_thick * flip);
                 positions.push(tmp);
 
                 //the miter is now the normal for our next join
@@ -202,7 +193,7 @@ impl Stroke {
             } else {
                 //miter
                 //next two points for our miter join
-                let [e1, e2] = extrusions(*cur, miter, miter_len);
+                let [e1, e2] = extrusions(cur, miter, miter_len);
                 positions.push(e1);
                 positions.push(e2);
 
@@ -226,10 +217,10 @@ impl Stroke {
 
             //push square end cap out a bit
             if cap_square {
-                *cur = scale_and_add(*cur, line_a, half_thick);
+                cur = scale_and_add(cur, line_a, half_thick);
             }
 
-            let [e1, e2] = extrusions(*cur, self.normal.unwrap(), half_thick);
+            let [e1, e2] = extrusions(cur, self.normal.unwrap(), half_thick);
             positions.push(e1);
             positions.push(e2);
             cells.push(if self.last_flip == 1.0 {

@@ -34,8 +34,8 @@ impl Default for Stroke {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Mesh {
-    positions: Vec<[f64; 2]>,
-    cells: Vec<[u32; 3]>,
+    pub positions: Vec<[f64; 2]>,
+    pub indices: Vec<[u32; 3]>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -138,7 +138,7 @@ impl Stroke {
         }: SegArgs,
     ) -> u32 {
         let mut count = 0;
-        let cells = &mut complex.cells;
+        let cells = &mut complex.indices;
         let positions = &mut complex.positions;
         let cap_square = matches!(self.cap, StrokeCap::Square);
         let join_bevel = matches!(self.join, StrokeJoin::Bevel);
@@ -324,7 +324,7 @@ mod tests {
             mesh,
             Mesh {
                 positions: vec![[3.25, 0.0], [0.75, 0.0], [3.25, 10.0], [0.75, 10.0]],
-                cells: vec![[0, 1, 2], [2, 1, 3]]
+                indices: vec![[0, 1, 2], [2, 1, 3]]
             }
         )
     }
@@ -346,7 +346,7 @@ mod tests {
                     [1.6464466094067263, -0.35355339059327373],
                     [2.353553390593274, 0.35355339059327373]
                 ],
-                cells: vec![[0, 1, 2], [2, 1, 3], [2, 3, 4], [4, 3, 5]]
+                indices: vec![[0, 1, 2], [2, 1, 3], [2, 3, 4], [4, 3, 5]]
             }
         )
     }

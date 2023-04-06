@@ -161,9 +161,7 @@ impl Stroke {
             if cap_square {
                 last = scale_and_add(last, line_a, -half_thick);
             }
-            let [e1, e2] = extrusions(last, state.normal.unwrap(), half_thick);
-            positions.push(e1);
-            positions.push(e2);
+            positions.extend_from_slice(&extrusions(last, state.normal.unwrap(), half_thick));
         }
 
         cells.push([index, index + 1, index + 2]);
@@ -224,9 +222,7 @@ impl Stroke {
             } else {
                 // miter
                 // next two points for our miter join
-                let [e1, e2] = extrusions(cur, miter, miter_len);
-                positions.push(e1);
-                positions.push(e2);
+                positions.extend_from_slice(&extrusions(cur, miter, miter_len));
 
                 cells.push(if state.last_flip == 1.0 {
                     [index, index + 2, index + 3]
@@ -251,9 +247,7 @@ impl Stroke {
                 cur = scale_and_add(cur, line_a, half_thick);
             }
 
-            let [e1, e2] = extrusions(cur, state.normal.unwrap(), half_thick);
-            positions.push(e1);
-            positions.push(e2);
+            positions.extend_from_slice(&extrusions(cur, state.normal.unwrap(), half_thick));
             cells.push(if state.last_flip == 1.0 {
                 [index, index + 2, index + 3]
             } else {

@@ -19,9 +19,6 @@ pub struct Stroke {
     pub thickness: f64,
     pub join: StrokeJoin,
     pub cap: StrokeCap,
-    last_flip: f64,
-    started: bool,
-    normal: Option<[f64; 2]>,
 }
 
 impl Default for Stroke {
@@ -31,9 +28,6 @@ impl Default for Stroke {
             thickness: 1.0,
             join: StrokeJoin::Miter,
             cap: StrokeCap::Butt,
-            last_flip: -1.0,
-            started: false,
-            normal: None,
         }
     }
 }
@@ -42,6 +36,23 @@ impl Default for Stroke {
 pub struct Mesh {
     positions: Vec<[f64; 2]>,
     cells: Vec<[u32; 3]>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct StrokeState {
+    last_flip: f64,
+    started: bool,
+    normal: Option<[f64; 2]>,
+}
+
+impl Default for StrokeState {
+    fn default() -> Self {
+        Self {
+            last_flip: -1.0,
+            started: false,
+            normal: None,
+        }
+    }
 }
 
 impl Stroke {
@@ -70,7 +81,7 @@ impl Stroke {
     }
 
     pub fn build_with_thickness_fn(
-        mut self,
+        self,
         points: &[[f64; 2]],
         mut thickness_fn: impl FnMut([f64; 2], usize, &[[f64; 2]]) -> f64,
     ) -> Mesh {
@@ -80,17 +91,22 @@ impl Stroke {
             return complex;
         }
 
-        self.last_flip = -1.0;
-        self.started = false;
-        self.normal = None;
-
+        let mut state = StrokeState::default();
         //join each segment
         let mut count = 0;
         for (i, pt) in points.windows(2).enumerate() {
             if let [last, current] = pt {
                 let next = points.get(i + 2).copied();
                 let thickness = thickness_fn(*current, i, points);
-                let amt = self.seg(&mut complex, count, *last, *current, next, thickness * 0.5);
+                let amt = self.seg(
+                    &mut state,
+                    &mut complex,
+                    count,
+                    *last,
+                    *current,
+                    next,
+                    thickness * 0.5,
+                );
                 count += amt;
             }
         }
@@ -99,7 +115,8 @@ impl Stroke {
     }
 
     fn seg(
-        &mut self,
+        &self,
+        state: &mut StrokeState,
         complex: &mut Mesh,
         index: u32,
         mut last: [f64; 2],
@@ -118,19 +135,19 @@ impl Stroke {
 
         //if we don't yet have a normal from previous join,
         //compute based on line start - end
-        if self.normal.is_none() {
-            self.normal = Some(normal(line_a));
+        if state.normal.is_none() {
+            state.normal = Some(normal(line_a));
         }
 
         //if we haven't started yet, add the first two points
-        if !self.started {
-            self.started = true;
+        if !state.started {
+            state.started = true;
 
             // if the end cap is type square, we can just push the verts out a bit
             if cap_square {
                 last = scale_and_add(last, line_a, -half_thick);
             }
-            let [e1, e2] = extrusions(last, self.normal.unwrap(), half_thick);
+            let [e1, e2] = extrusions(last, state.normal.unwrap(), half_thick);
             positions.push(e1);
             positions.push(e2);
         }
@@ -154,7 +171,7 @@ impl Stroke {
             let (tangent, miter, miter_len) = compute_miter(line_a, line_b, half_thick);
 
             //get orientation
-            let mut flip = if dot(tangent, self.normal.unwrap()) < 0.0 {
+            let mut flip = if dot(tangent, state.normal.unwrap()) < 0.0 {
                 -1.0
             } else {
                 1.0
@@ -170,12 +187,12 @@ impl Stroke {
 
             if bevel {
                 //next two points in our first segment
-                let tmp = scale_and_add(cur, self.normal.unwrap(), -half_thick * flip);
+                let tmp = scale_and_add(cur, state.normal.unwrap(), -half_thick * flip);
                 positions.push(tmp);
                 let tmp = scale_and_add(cur, miter, miter_len * flip);
                 positions.push(tmp);
 
-                cells.push(if self.last_flip != -flip {
+                cells.push(if state.last_flip != -flip {
                     [index, index + 2, index + 3]
                 } else {
                     [index + 2, index + 1, index + 3]
@@ -183,7 +200,7 @@ impl Stroke {
                 cells.push([index + 2, index + 3, index + 4]);
 
                 let tmp = normal(line_b);
-                self.normal = Some(tmp); //store normal for next round
+                state.normal = Some(tmp); //store normal for next round
 
                 let tmp = scale_and_add(cur, tmp, -half_thick * flip);
                 positions.push(tmp);
@@ -197,7 +214,7 @@ impl Stroke {
                 positions.push(e1);
                 positions.push(e2);
 
-                cells.push(if self.last_flip == 1.0 {
+                cells.push(if state.last_flip == 1.0 {
                     [index, index + 2, index + 3]
                 } else {
                     [index + 2, index + 1, index + 3]
@@ -206,24 +223,24 @@ impl Stroke {
                 flip = -1.0;
 
                 //the miter is now the normal for our next join
-                self.normal = Some(miter);
+                state.normal = Some(miter);
                 count += 2
             }
-            self.last_flip = flip;
+            state.last_flip = flip;
         } else {
             //no next segment, simple extrusion
             //now reset normal to finish cap
-            self.normal = Some(normal(line_a));
+            state.normal = Some(normal(line_a));
 
             //push square end cap out a bit
             if cap_square {
                 cur = scale_and_add(cur, line_a, half_thick);
             }
 
-            let [e1, e2] = extrusions(cur, self.normal.unwrap(), half_thick);
+            let [e1, e2] = extrusions(cur, state.normal.unwrap(), half_thick);
             positions.push(e1);
             positions.push(e2);
-            cells.push(if self.last_flip == 1.0 {
+            cells.push(if state.last_flip == 1.0 {
                 [index, index + 2, index + 3]
             } else {
                 [index + 2, index + 1, index + 3]

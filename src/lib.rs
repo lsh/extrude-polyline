@@ -86,21 +86,24 @@ impl Stroke {
 
         //join each segment
         let mut count = 0;
-        for i in 1..points.len() {
-            let mut last = points[i - 1];
-            let mut cur = points[i];
-            let mut next = points.get(i + 1).copied();
-            let thickness = thickness_fn(cur, i, points);
-            let amt = self.seg(
-                &mut complex,
-                count,
-                &mut last,
-                &mut cur,
-                next.as_mut(),
-                thickness * 0.5,
-            );
-            count += amt;
+        for (i, pt) in points.windows(2).enumerate() {
+            if let [last, current] = pt {
+                let mut last = *last;
+                let mut current = *current;
+                let mut next = points.get(i + 2).copied();
+                let thickness = thickness_fn(current, i, points);
+                let amt = self.seg(
+                    &mut complex,
+                    count,
+                    &mut last,
+                    &mut current,
+                    next.as_mut(),
+                    thickness * 0.5,
+                );
+                count += amt;
+            }
         }
+
         complex
     }
 

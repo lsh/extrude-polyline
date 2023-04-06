@@ -101,7 +101,7 @@ impl Stroke {
         }
 
         let mut state = StrokeState::default();
-        //join each segment
+        // join each segment
         let mut count = 0;
         for (i, pt) in points.windows(2).enumerate() {
             if let [last, current] = pt {
@@ -146,13 +146,14 @@ impl Stroke {
         // get unit direction of line
         let line_a = direction(cur, last);
 
-        //if we don't yet have a normal from previous join,
-        //compute based on line start - end
+        // if we don't yet have a normal from previous join,
+        // compute based on line start - end
+        // note that normal is now always defined so we can unwrap it
         if state.normal.is_none() {
             state.normal = Some(normal(line_a));
         }
 
-        //if we haven't started yet, add the first two points
+        // if we haven't started yet, add the first two points
         if !state.started {
             state.started = true;
 
@@ -176,14 +177,14 @@ impl Stroke {
         - none (i.e. no next segment, use normal)
          */
         if let Some(next) = next {
-            //we have a next segment, start with miter
-            //get unit dir of next line
+            // we have a next segment, start with miter
+            // get unit dir of next line
             let line_b = direction(next, cur);
 
-            //stores tangent & miter
+            // stores tangent & miter
             let (tangent, miter, miter_len) = compute_miter(line_a, line_b, half_thick);
 
-            //get orientation
+            // get orientation
             let mut flip = if dot(tangent, state.normal.unwrap()) < 0.0 {
                 -1.0
             } else {
@@ -199,7 +200,7 @@ impl Stroke {
             }
 
             if bevel {
-                //next two points in our first segment
+                // next two points in our first segment
                 let tmp = scale_and_add(cur, state.normal.unwrap(), -half_thick * flip);
                 positions.push(tmp);
                 let tmp = scale_and_add(cur, miter, miter_len * flip);
@@ -213,16 +214,16 @@ impl Stroke {
                 cells.push([index + 2, index + 3, index + 4]);
 
                 let tmp = normal(line_b);
-                state.normal = Some(tmp); //store normal for next round
+                state.normal = Some(tmp); // store normal for next round
 
                 let tmp = scale_and_add(cur, tmp, -half_thick * flip);
                 positions.push(tmp);
 
-                //the miter is now the normal for our next join
+                // the miter is now the normal for our next join
                 count += 3;
             } else {
-                //miter
-                //next two points for our miter join
+                // miter
+                // next two points for our miter join
                 let [e1, e2] = extrusions(cur, miter, miter_len);
                 positions.push(e1);
                 positions.push(e2);
@@ -235,17 +236,17 @@ impl Stroke {
 
                 flip = -1.0;
 
-                //the miter is now the normal for our next join
+                // the miter is now the normal for our next join
                 state.normal = Some(miter);
                 count += 2
             }
             state.last_flip = flip;
         } else {
-            //no next segment, simple extrusion
-            //now reset normal to finish cap
+            // no next segment, simple extrusion
+            // now reset normal to finish cap
             state.normal = Some(normal(line_a));
 
-            //push square end cap out a bit
+            // push square end cap out a bit
             if cap_square {
                 cur = scale_and_add(cur, line_a, half_thick);
             }
@@ -293,14 +294,14 @@ fn direction(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
 }
 
 fn compute_miter(line_a: [f64; 2], line_b: [f64; 2], half_thick: f64) -> ([f64; 2], [f64; 2], f64) {
-    //get tangent line
+    // get tangent line
     let tangent = normalize(add(line_a, line_b));
 
-    //get miter as a unit vector
+    // get miter as a unit vector
     let miter = [-tangent[1], tangent[0]];
     let tmp = [-line_a[1], line_a[0]];
 
-    //get the necessary length of our miter
+    // get the necessary length of our miter
     (tangent, miter, half_thick / dot(miter, tmp))
 }
 

@@ -55,6 +55,15 @@ impl Default for StrokeState {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct SegArgs {
+    index: u32,
+    last: [f64; 2],
+    cur: [f64; 2],
+    next: Option<[f64; 2]>,
+    half_thick: f64,
+}
+
 impl Stroke {
     pub fn thickness(mut self, thickness: f64) -> Self {
         self.thickness = thickness;
@@ -101,11 +110,13 @@ impl Stroke {
                 let amt = self.seg(
                     &mut state,
                     &mut complex,
-                    count,
-                    *last,
-                    *current,
-                    next,
-                    thickness * 0.5,
+                    SegArgs {
+                        index: count,
+                        last: *last,
+                        cur: *current,
+                        next,
+                        half_thick: thickness * 0.5,
+                    },
                 );
                 count += amt;
             }
@@ -118,11 +129,13 @@ impl Stroke {
         &self,
         state: &mut StrokeState,
         complex: &mut Mesh,
-        index: u32,
-        mut last: [f64; 2],
-        mut cur: [f64; 2],
-        next: Option<[f64; 2]>,
-        half_thick: f64,
+        SegArgs {
+            index,
+            mut last,
+            mut cur,
+            next,
+            half_thick,
+        }: SegArgs,
     ) -> u32 {
         let mut count = 0;
         let cells = &mut complex.cells;
